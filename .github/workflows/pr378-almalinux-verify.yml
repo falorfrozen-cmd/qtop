@@ -1,0 +1,48 @@
+name: pr378-almalinux-verify
+
+on:
+  push:
+    branches:
+      - pr378-almalinux-verify
+  workflow_dispatch:
+
+jobs:
+  verify-sample:
+    runs-on: ubuntu-latest
+    container: almalinux:8.10-20260509
+    steps:
+      - name: Install runtime dependencies
+        run: |
+          dnf -y install git python3
+          cat /etc/almalinux-release
+          python3 --version
+
+      - name: Checkout qtop PR branch
+        uses: actions/checkout@v4
+
+      - name: Fetch qtop PBS samples
+        run: |
+          git clone --depth 1 https://github.com/fgeorgatos/qtop-test-repo.git /tmp/qtop-test-repo
+
+      - name: Render requested PBS sample
+        run: |
+          SAMPLE=/tmp/qtop-test-repo/qtop5/results/gef_xwILYNMpoabX4PDGYXIZAA
+          mkdir -p /tmp/qtop-pr378-output
+          python3 -m qtop_py.cli -b pbs -s "$SAMPLE" -c ON > /tmp/qtop-pr378-output/gef_xwILYNMpoabX4PDGYXIZAA.ans
+          test -s /tmp/qtop-pr378-output/gef_xwILYNMpoabX4PDGYXIZAA.ans
+          grep -q "Job accounting summary" /tmp/qtop-pr378-output/gef_xwILYNMpoabX4PDGYXIZAA.ans
+          grep -q "Summary" /tmp/qtop-pr378-output/gef_xwILYNMpoabX4PDGYXIZAA.ans
+          wc -l /tmp/qtop-pr378-output/gef_xwILYNMpoabX4PDGYXIZAA.ans
+
+      - name: Run validation helper for the requested sample
+        run: |
+          python3 tools/validate_pbs_samples.py /tmp/qtop-test-repo/qtop5/results --limit 1 --output /tmp/qtop-pr378-rendered
+          cat /tmp/qtop-pr378-rendered/manifest.json
+
+      - name: Upload rendered output
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr378-almalinux-qtop-output
+          path: |
+            /tmp/qtop-pr378-output
+            /tmp/qtop-pr378-rendered
